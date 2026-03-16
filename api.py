@@ -9,14 +9,14 @@ from satoru_prompt import SYSTEM_PROMPT
 
 app = FastAPI(
     title="Satoru AI API",
-    version="2.4"
+    version="3.1"
 )
 
 
 # -----------------------
-# Memory (last 10 msgs)
+# Memory
 # -----------------------
-memory = defaultdict(lambda: deque(maxlen=10))
+memory = defaultdict(lambda: deque(maxlen=12))
 
 
 # -----------------------
@@ -27,18 +27,24 @@ emoji_map = {
     "🤣": "user laughing hard",
     "😡": "user angry",
     "😏": "user teasing",
-    "❤️": "user affection",
     "🔥": "user excited",
-    "😭": "user crying"
+    "😭": "user crying",
 }
 
 
 # -----------------------
-# Insult Detection
+# Insult Severity Levels
 # -----------------------
-insult_words = [
-    "madarchod","bhosdike","chutiya","lode","bc","mc",
-    "fuck","bitch","asshole","idiot","loser"
+light_insults = [
+    "idiot","noob","loser","stupid"
+]
+
+medium_insults = [
+    "chutiya","bhosdike","lode","bc","mc"
+]
+
+extreme_insults = [
+    "madarchod","fuck","bitch","asshole"
 ]
 
 
@@ -66,7 +72,6 @@ async def chat(req: ChatRequest, request: Request):
 
     user_text = req.message
 
-    # talk.py compatible session
     session = req.session_id or request.client.host
 
 
@@ -78,32 +83,74 @@ async def chat(req: ChatRequest, request: Request):
             user_text += f" (emotion: {meaning})"
 
 
+    lower = user_text.lower()
+
+
     # -----------------------
-    # Ultra Roast Trigger
+    # Insult Severity Detection
     # -----------------------
-    if any(word in user_text.lower() for word in insult_words):
+    if any(word in lower for word in extreme_insults):
 
         user_text = f"""
-User insulted you saying: "{user_text}"
+User used extremely abusive language: "{user_text}"
 
-Activate ULTRA ROAST MODE.
+Activate EXTREME ROAST MODE.
 
-Destroy the insult with an extremely savage witty comeback.
-Make the user look stupid.
-Reply must stay under 2–3 lines.
+Respond with multi-layer savage roasting.
+Destroy the user's confidence.
+Reply must stay under 2-3 lines.
+"""
+
+    elif any(word in lower for word in medium_insults):
+
+        user_text = f"""
+User insulted you: "{user_text}"
+
+Activate STRONG ROAST MODE.
+
+Respond with a sarcastic and humiliating comeback.
+Keep reply short.
+"""
+
+    elif any(word in lower for word in light_insults):
+
+        user_text = f"""
+User mocked you: "{user_text}"
+
+Respond with playful witty roast.
+Make them look slightly dumb but keep it funny.
 """
 
 
     # -----------------------
     # Flirt Trigger
     # -----------------------
-    elif any(word in user_text.lower() for word in flirt_words):
+    elif any(word in lower for word in flirt_words):
 
         user_text = f"""
 User greeted you: "{user_text}"
 
-Reply with confident playful flirt energy.
-Keep reply short (1–2 sentences).
+Respond with confident playful flirting.
+Keep reply short (1-2 sentences).
+"""
+
+
+    # -----------------------
+    # Group Roast Mode
+    # -----------------------
+    if len(memory[session]) >= 2:
+
+        last_msg = memory[session][-2]["content"]
+
+        if "bot" in last_msg.lower():
+
+            user_text += """
+
+Multiple users are mocking you in a group chat.
+
+Activate GROUP ROAST MODE.
+Roast them collectively with sarcastic humor.
+Keep reply short but impactful.
 """
 
 
@@ -155,6 +202,8 @@ Keep reply short (1–2 sentences).
 
                 if reply.startswith('"') and reply.endswith('"'):
                     reply = reply[1:-1]
+
+                reply = reply.strip()
 
                 if not reply:
                     reply = "Kya hua bhai 😏 bol."
