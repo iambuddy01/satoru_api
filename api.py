@@ -9,7 +9,7 @@ from satoru_prompt import SYSTEM_PROMPT
 
 app = FastAPI(
     title="Satoru AI API",
-    version="2.3"
+    version="2.4"
 )
 
 
@@ -23,11 +23,11 @@ memory = defaultdict(lambda: deque(maxlen=10))
 # Emoji Intelligence
 # -----------------------
 emoji_map = {
-    "😂": "user is laughing",
+    "😂": "user laughing",
     "🤣": "user laughing hard",
     "😡": "user angry",
     "😏": "user teasing",
-    "❤️": "user showing affection",
+    "❤️": "user affection",
     "🔥": "user excited",
     "😭": "user crying"
 }
@@ -66,7 +66,7 @@ async def chat(req: ChatRequest, request: Request):
 
     user_text = req.message
 
-    # session auto generate (talk.py change nahi karna padega)
+    # talk.py compatible session
     session = req.session_id or request.client.host
 
 
@@ -79,15 +79,18 @@ async def chat(req: ChatRequest, request: Request):
 
 
     # -----------------------
-    # Roast Trigger
+    # Ultra Roast Trigger
     # -----------------------
     if any(word in user_text.lower() for word in insult_words):
 
         user_text = f"""
 User insulted you saying: "{user_text}"
 
-Activate savage roast mode.
-Respond with a short brutal witty comeback.
+Activate ULTRA ROAST MODE.
+
+Destroy the insult with an extremely savage witty comeback.
+Make the user look stupid.
+Reply must stay under 2–3 lines.
 """
 
 
@@ -100,12 +103,12 @@ Respond with a short brutal witty comeback.
 User greeted you: "{user_text}"
 
 Reply with confident playful flirt energy.
-Keep reply short.
+Keep reply short (1–2 sentences).
 """
 
 
     # -----------------------
-    # Memory
+    # Conversation Memory
     # -----------------------
     history = list(memory[session])
 
@@ -119,8 +122,8 @@ Keep reply short.
     payload = {
         "model": MODEL_NAME,
         "messages": messages,
-        "temperature": 0.8,
-        "max_tokens": 120,
+        "temperature": 0.85,
+        "max_tokens": 80,
         "top_p": 0.9
     }
 
@@ -146,19 +149,20 @@ Keep reply short.
 
 
                 # -----------------------
-                # Reply cleaning
+                # Reply Cleaning
                 # -----------------------
                 reply = reply.replace("```", "").strip()
 
                 if reply.startswith('"') and reply.endswith('"'):
                     reply = reply[1:-1]
 
-
                 if not reply:
                     reply = "Kya hua bhai 😏 bol."
 
 
-                # save memory
+                # -----------------------
+                # Save Memory
+                # -----------------------
                 memory[session].append({"role": "user", "content": req.message})
                 memory[session].append({"role": "assistant", "content": reply})
 
