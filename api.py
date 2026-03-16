@@ -9,12 +9,12 @@ from satoru_prompt import SYSTEM_PROMPT
 
 app = FastAPI(
     title="Satoru AI API",
-    version="2.2"
+    version="2.3"
 )
 
 
 # -----------------------
-# Memory
+# Memory (last 10 msgs)
 # -----------------------
 memory = defaultdict(lambda: deque(maxlen=10))
 
@@ -24,12 +24,12 @@ memory = defaultdict(lambda: deque(maxlen=10))
 # -----------------------
 emoji_map = {
     "😂": "user is laughing",
-    "🤣": "user is laughing hard",
-    "😡": "user is angry",
-    "😏": "user is teasing",
-    "❤️": "user is expressing affection",
-    "🔥": "user is excited",
-    "😭": "user is crying",
+    "🤣": "user laughing hard",
+    "😡": "user angry",
+    "😏": "user teasing",
+    "❤️": "user showing affection",
+    "🔥": "user excited",
+    "😭": "user crying"
 }
 
 
@@ -66,7 +66,7 @@ async def chat(req: ChatRequest, request: Request):
 
     user_text = req.message
 
-    # agar session_id nahi aya → client IP use karo
+    # session auto generate (talk.py change nahi karna padega)
     session = req.session_id or request.client.host
 
 
@@ -75,36 +75,37 @@ async def chat(req: ChatRequest, request: Request):
     # -----------------------
     for emoji, meaning in emoji_map.items():
         if emoji in user_text:
-            user_text = f"{user_text} (emotion detected: {meaning})"
+            user_text += f" (emotion: {meaning})"
 
 
     # -----------------------
-    # Ultra Brutal Roast Mode
+    # Roast Trigger
     # -----------------------
     if any(word in user_text.lower() for word in insult_words):
-        user_text = f"""
-User insulted you with abusive language: "{user_text}"
 
-Activate ULTRA ROAST MODE.
-Destroy the user's insult with a savage witty comeback.
-Keep response short but brutal.
+        user_text = f"""
+User insulted you saying: "{user_text}"
+
+Activate savage roast mode.
+Respond with a short brutal witty comeback.
 """
 
 
     # -----------------------
-    # Smart Flirting Engine
+    # Flirt Trigger
     # -----------------------
     elif any(word in user_text.lower() for word in flirt_words):
+
         user_text = f"""
 User greeted you: "{user_text}"
 
-Respond with playful confident flirt energy.
-Keep reply short and natural.
+Reply with confident playful flirt energy.
+Keep reply short.
 """
 
 
     # -----------------------
-    # Conversation Memory
+    # Memory
     # -----------------------
     history = list(memory[session])
 
@@ -118,7 +119,7 @@ Keep reply short and natural.
     payload = {
         "model": MODEL_NAME,
         "messages": messages,
-        "temperature": 0.85,
+        "temperature": 0.8,
         "max_tokens": 120,
         "top_p": 0.9
     }
@@ -131,6 +132,7 @@ Keep reply short and natural.
 
 
     try:
+
         async with aiohttp.ClientSession() as session_http:
             async with session_http.post(
                 CEREBRAS_ENDPOINT,
@@ -139,15 +141,30 @@ Keep reply short and natural.
             ) as response:
 
                 data = await response.json()
+
                 reply = data["choices"][0]["message"]["content"].strip()
 
 
-                # memory save
+                # -----------------------
+                # Reply cleaning
+                # -----------------------
+                reply = reply.replace("```", "").strip()
+
+                if reply.startswith('"') and reply.endswith('"'):
+                    reply = reply[1:-1]
+
+
+                if not reply:
+                    reply = "Kya hua bhai 😏 bol."
+
+
+                # save memory
                 memory[session].append({"role": "user", "content": req.message})
                 memory[session].append({"role": "assistant", "content": reply})
 
 
                 return {"reply": reply}
 
+
     except Exception:
-        return {"reply": "😅 Network thoda slow ho gaya… phir bol."}
+        return {"reply": "😅 Net thoda slow ho gaya… phir bol."}
